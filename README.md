@@ -98,7 +98,6 @@ Make sure you have all files: `server.py`, `streamlit_app.py`, `run.py`, `requir
 
 ```bash
 python -m venv venv
-On Windows: venv\Scripts\activate
 ```
 
 ### 3. Install dependencies
@@ -169,7 +168,7 @@ http://localhost:8000/docs
 ## Requirements
 
 - Python 3.9 or higher
-- A Google Gemini API key (get one at https://aistudio.google.com)
+- A Google Gemini API key 
 - `langchain-google-genai`, `langchain-core`, `fastapi`, `uvicorn`, `streamlit`
 
 ---
