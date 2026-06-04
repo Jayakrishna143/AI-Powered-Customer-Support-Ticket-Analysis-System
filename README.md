@@ -1,185 +1,104 @@
 # AI-Powered Customer Support Ticket Analyzer
 
-A lightweight AI application that reads a plain customer support message and instantly tells you what it's about, how urgent it is, whether it needs escalation, and even drafts a professional reply - powered by **Gemini 2.5 Flash** via **LangChain**.
+Analyzes customer support messages using **Gemini 2.5 Flash** and returns structured output — category, priority, escalation status, and a suggested reply. Every analysis is saved to an Excel file for further use.
 
 ---
-
-## What It Does
-
-When a customer sends a support message like:
-
-> "I was charged twice for my subscription and need a refund."
-
-The system analyzes it and returns:
-
-| Field | Example Output |
-|---|---|
-| Category | Billing |
-| Priority | High |
-| Extracted Details | payment issue, duplicate charge, refund request |
-| Response Draft | A ready-to-send professional reply |
-| Escalation | Required |
-
-The customer types a plain message — they don't know about internal categories or priority levels. The model figures out everything.
-
----
-
-## Project Structure
-
-```
-project/
-├── server.py         # FastAPI backend — LangChain chain + analysis logic
-├── streamlit_app.py  # Streamlit frontend — the UI you interact with
-├── run.py            # Launcher — starts both server and UI together
-├── requirements.txt  # Python dependencies
-└── README.md
-```
-
----
-
-## Approach & Architecture
-
-### Framework: LangChain
-
-The analysis logic is built using a minimal LangChain chain:
-
-```
-prompt | llm | JsonOutputParser
-```
-
-- **`ChatPromptTemplate`** — defines the system instruction and injects the user message
-- **`ChatGoogleGenerativeAI`** — calls Gemini 2.5 Flash to process the ticket
-- **`JsonOutputParser`** — parses the model's JSON output directly into a Python dict
-
-### Model: Gemini 2.5 Flash (`gemini-2.5-flash`)
-
-Key settings:
-
-| Setting | Value |
-|---|---|
-| Model | `gemini-2.5-flash` |
-| `max_tokens` | `2000` |
-| `temperature` | `0.2` |
-
-`temperature=0.2` keeps the output consistent and factual — low enough to be reliable for classification tasks, with a little room for natural language in the response draft.
 
 ## How It Works
 
+You paste a customer message like:
+
+> "I was charged twice for my subscription and need a refund."
+
+The AI reads it and returns:
+
+| Field | Example |
+|---|---|
+| Category | Billing |
+| Priority | High |
+| Escalation | Required |
+| Extracted Details | duplicate charge, refund request |
+| Response Draft | A ready-to-send professional reply |
+
+Every result is **automatically appended** to `ticket_analysis.xlsx`. You can download the full history anytime from the UI and share it with the relevant team (billing, tech support, security, etc.) or use it for reporting and analysis.
+
+---
+
+## Workflow
+
 ```
-User types a plain message
-        |
-        v
-Streamlit UI (port 8501)
-        |
-  HTTP POST /analyze  { "message": "..." }
-        |
-        v
-FastAPI Server (port 8000)
-        |
-  LangChain chain:
-  prompt | llm | JsonOutputParser
-        |
-        v
-Gemini 2.5 Flash returns structured JSON
-        |
-        v
-UI displays: category, priority, details, draft, escalation
+Customer message (typed in UI)
+        ↓
+Streamlit UI  →  POST /analyze  →  FastAPI Server
+                                        ↓
+                              LangChain: prompt | Gemini | JSON
+                                        ↓
+                         Category, Priority, Escalation, Draft
+                                        ↓
+                      Auto-saved to ticket_analysis.xlsx
+                                        ↓
+                  Download Excel from UI → share with team
 ```
 
 ---
 
-## Setup and Installation
+## Run It on Your PC
 
-### 1. Clone or download the project
-
-Make sure you have all files: `server.py`, `streamlit_app.py`, `run.py`, `requirements.txt`
-
-### 2. Create a virtual environment (recommended)
+### 1. Clone the repo
 
 ```bash
-python -m venv venv
+git clone https://github.com/Jayakrishna143/AI-Powered-Customer-Support-Ticket-Analysis-System.git
+cd AI-Powered-Customer-Support-Ticket-Analysis-System
+```
+
+### 2. Create a virtual environment
+
+```bash
+python -m venv .venv
 ```
 
 ### 3. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+.venv\Scripts\pip install -r requirements.txt   # Windows
+# or
+.venv/bin/pip install -r requirements.txt        # Mac/Linux
 ```
 
-### 4. Set your Google API key
-
-You need a Gemini API key 
+### 4. Add your Gemini API key
 
 Create a `.env` file in the project root:
 
 ```
 GOOGLE_API_KEY=your_api_key_here
 ```
-### 5. Run the app
+
+Get a free key at [aistudio.google.com](https://aistudio.google.com)
+
+### 5. Start the app
 
 ```bash
 python run.py
 ```
 
-Open your browser at:
-
-```
-http://localhost:8501
-```
+Open **http://localhost:8501** in your browser.
 
 ---
 
-## Using the App
+## Excel Export
 
-The UI has two tabs:
-
-**Analyze Ticket**
-Type any customer support message in the text box and click Analyze. You'll see the category, priority, escalation status, key details, and a suggested reply.
-
-**Sample Dataset**
-8 pre-loaded customer messages across different issue types. Click "Analyze this" on any message to see the AI output for it.
+- Every ticket analysis is saved to `ticket_analysis.xlsx` automatically
+- Click **"Download Excel Report"** in the UI to download the full history
+- Use the file to route tickets to the right team, track trends, or import into any CRM/spreadsheet tool
 
 ---
 
-## API Endpoints
+## Tech Stack
 
-**Analyze a ticket**
-```
-POST http://localhost:8000/analyze
-Content-Type: application/json
-
-{
-  "message": "I was charged twice for my subscription and need a refund."
-}
-```
-
-**Get sample dataset**
-```
-GET http://localhost:8000/dataset
-```
-
-Auto-generated API docs:
-```
-http://localhost:8000/docs
-```
-
----
-
-## Requirements
-
-- Python 3.9 or higher
-- A Google Gemini API key 
-- `langchain-google-genai`, `langchain-core`, `fastapi`, `uvicorn`, `streamlit`
-
----
-
-## Troubleshooting
-
-**`GOOGLE_API_KEY` not set**
-Make sure the key is set in your `.env` file or in the terminal session where you run the app.
-
-**Port already in use**
-If 8000 or 8501 is occupied, stop other running processes or change the port numbers in `run.py` and `streamlit_app.py`.
-
-**JSON parse error**
-Rare. Gemini occasionally wraps output in markdown fences. `JsonOutputParser` from LangChain handles stripping these automatically.
+| Layer | Tool |
+|---|---|
+| LLM | Gemini 2.5 Flash |
+| AI Framework | LangChain |
+| Backend | FastAPI |
+| Frontend | Streamlit |
+| Export | pandas + openpyxl |

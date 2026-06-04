@@ -1,24 +1,19 @@
+from dotenv import load_dotenv
+load_dotenv()
+
+import os
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
+import pandas as pd
+from datetime import datetime
 
 app = FastAPI(title="Customer Ticket Priority Analyzer")
 
-# ---------------------------------------------------------------------------
-# Sample dataset – raw customer messages only, as a customer would type them
-# ---------------------------------------------------------------------------
-SAMPLE_DATASET = [
-    "I was charged twice for my subscription and need a refund.",
-    "My account got hacked and I can't log in anymore.",
-    "How do I change my email address in settings?",
-    "The app keeps crashing every time I open it on iPhone.",
-    "I cancelled my plan but still got charged this month.",
-    "I need to download an invoice for my company records.",
-    "My data was deleted after the update. I need it restored immediately.",
-    "Can you explain the difference between Pro and Basic plans?",
-]
+EXCEL_FILE = "ticket_analysis.xlsx"
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -52,17 +47,48 @@ Return ONLY valid JSON, no extra text."""),
     ("human", "{message}"),
 ])
 
-llm = ChatAnthropic(model="claude-sonnet-4-20250514", max_tokens=1024)
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", max_tokens=2000, temperature=0.2)
 
 chain = prompt | llm | JsonOutputParser()
 
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
-@app.get("/dataset")
-def get_dataset():
-    return SAMPLE_DATASET
+# Helper: append a result row to the Excel file
+def append_to_excel(message: str, result: dict):
+    row = {
+        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Customer Message": message,
+        "Category": result.get("category", ""),
+        "Priority": result.get("priority", ""),
+        "Extracted Details": " | ".join(result.get("extracted_details", [])),
+        "Response Draft": result.get("response_draft", ""),
+        "Escalation": result.get("escalation", ""),
+    }
 
+    if os.path.exists(EXCEL_FILE):
+        df_existing = pd.read_excel(EXCEL_FILE)
+        df_new = pd.concat([df_existing, pd.DataFrame([row])], ignore_index=True)
+    else:
+        df_new = pd.DataFrame([row])
+
+    df_new.to_excel(EXCEL_FILE, index=False)
+
+# Routes
 @app.post("/analyze", response_model=TicketResponse)
 def analyze_ticket(req: TicketRequest):
-    return chain.invoke({"message": req.message})
+    result = chain.invoke({"message": req.message})
+    append_to_excel(req.message, result)
+    return result
+
+@app.get("/export-excel")
+def export_excel():
+    if not os.path.exists(EXCEL_FILE):
+        # Return an empty sheet if no data yet
+        pd.DataFrame(columns=[
+            "Timestamp", "Customer Message", "Category",
+            "Priority", "Extracted Details", "Response Draft", "Escalation"
+        ]).to_excel(EXCEL_FILE, index=False)
+
+    return FileResponse(
+        path=EXCEL_FILE,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="ticket_analysis.xlsx",
+    )
